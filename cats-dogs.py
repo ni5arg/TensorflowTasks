@@ -67,27 +67,103 @@ IMG_SHAPE  = 150  # Our training data consists of images with width of 150 pixel
 
 
 ############    WITHOUT OVERFITTING MITIGATION #################################
-#Pre-processing
-#Read images from the disk
-#Decode contents of these images and convert it into proper grid format as per their RGB content
-#Convert them into floating point tensors
-#Rescale the tensors from values between 0 and 255 to values between 0 and 1, as neural networks prefer to deal with small input values.
+##Pre-processing
+##Read images from the disk
+##Decode contents of these images and convert it into proper grid format as per their RGB content
+##Convert them into floating point tensors
+##Rescale the tensors from values between 0 and 255 to values between 0 and 1, as neural networks prefer to deal with small input values.
+#
+#train_image_generator = ImageDataGenerator(rescale=1./255)
+#validation_image_generator = ImageDataGenerator(rescale=1./255)
+#
+#train_data_gen = train_image_generator.flow_from_directory(batch_size=BATCH_SIZE,
+#                                                           directory=train_dir,
+#                                                           shuffle=True,
+#                                                           target_size=(IMG_SHAPE,IMG_SHAPE),
+#                                                           class_mode='binary')
+#val_data_gen = validation_image_generator.flow_from_directory(batch_size=BATCH_SIZE,
+#                                                           directory=validation_dir,
+#                                                           shuffle=False,
+#                                                           target_size=(IMG_SHAPE,IMG_SHAPE),
+#                                                           class_mode='binary')
+#
+#sample_training_images,labels = next(train_data_gen)
+#
+#def plotImages(images_arr):
+#    fig, axes = plt.subplots(1,5,figsize=(20,20))
+#    axes = axes.flatten()
+#    for img, ax in zip(images_arr,axes):
+#        ax.imshow(img)
+#    plt.tight_layout()
+#    plt.show()
+#
+#plotImages(sample_training_images[:5])
+#
+##Define the model
+#model = tf.keras.models.Sequential([
+#        tf.keras.layers.Conv2D(32, (3,3), activation = 'relu', input_shape = (150,150,3)),
+#        tf.keras.layers.MaxPool2D((2,2)),
+#        
+#        tf.keras.layers.Conv2D(64, (3,3), activation= 'relu'),
+#        tf.keras.layers.MaxPool2D((2,2)),
+#        
+#        tf.keras.layers.Conv2D(128, (3,3), activation= 'relu'),
+#        tf.keras.layers.MaxPool2D((2,2)),
+#        
+#        tf.keras.layers.Flatten(),
+#        tf.keras.layers.Dense(512, activation='relu'),
+#        tf.keras.layers.Dense(2)
+#        ])
+#    
+##Compile the model
+#model.compile(optimizer='adam',
+#              loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+#              metrics=['accuracy'])
+#model.summary()
+#
+##fit the model
+#EPOCHS=100
+#history = model.fit(train_data_gen, 
+#          epochs = EPOCHS, 
+#          validation_data=val_data_gen,
+#          validation_steps = int(np.ceil(total_val/float(BATCH_SIZE))),
+#          shuffle=True,
+#          steps_per_epoch=int(np.ceil(total_train/float(BATCH_SIZE))),
+#          )
+#
+##let's plot the accuracy and loss progression in each epoch
+##First, prinnt which data fields are avaiable in the hostory object
+#print(history.history.keys())
+#
+#acc = history.history['accuracy']
+#loss = history.history['loss']
+#
+#val_acc = history.history['val_accuracy']
+#val_loss = history.history['val_loss']
+#
+#epochs_range = range(EPOCHS)
+#
+#plt.figure(figsize=(8,8))
+#plt.subplot(1,2,1)
+#plt.plot(epochs_range, acc, label = 'Training Accurancy')
+#plt.plot(epochs_range, val_acc, label = 'Validation Accuracy')
+#plt.legend(loc='lower right')
+#plt.title('Training and Validation Accuracy')
+#
+#plt.subplot(1,2,2)
+#plt.plot(epochs_range, loss, label = 'Training Loss')
+#plt.plot(epochs_range, val_loss, label = 'Validation Loss')
+#plt.legend(loc='upper right')
+#plt.title('Training and Validation Loss')
+#
+#plt.savefig('./AccuracyLoss')
+#plt.show()
+###############################################################################
 
-train_image_generator = ImageDataGenerator(rescale=1./255)
-validation_image_generator = ImageDataGenerator(rescale=1./255)
 
-train_data_gen = train_image_generator.flow_from_directory(batch_size=BATCH_SIZE,
-                                                           directory=train_dir,
-                                                           shuffle=True,
-                                                           target_size=(IMG_SHAPE,IMG_SHAPE),
-                                                           class_mode='binary')
-val_data_gen = validation_image_generator.flow_from_directory(batch_size=BATCH_SIZE,
-                                                           directory=validation_dir,
-                                                           shuffle=False,
-                                                           target_size=(IMG_SHAPE,IMG_SHAPE),
-                                                           class_mode='binary')
-
-sample_training_images,labels = next(train_data_gen)
+#The above method shows 70% accuracy on validation set and 100% on the training set.
+#The diverging graphs in accuracy and loss show overfitting.
+#We'll try two methods to mitigate overfitting: Data augmentation and Dropout
 
 def plotImages(images_arr):
     fig, axes = plt.subplots(1,5,figsize=(20,20))
@@ -97,20 +173,56 @@ def plotImages(images_arr):
     plt.tight_layout()
     plt.show()
 
-plotImages(sample_training_images[:5])
+image_gen = ImageDataGenerator(rescale=1./255, 
+                               horizontal_flip= True,
+                               rotation_range= 40,
+                               zoom_range= 0.2,
+                               shear_range= 0.2,
+                               width_shift_range= 0.2,
+                               height_shift_range= 0.2,
+                               fill_mode= 'nearest')
 
-#Define the model
-model = tf.keras.models.Sequential([
-        tf.keras.layers.Conv2D(32, (3,3), activation = 'relu', input_shape = (150,150,3)),
-        tf.keras.layers.MaxPool2D((2,2)),
+train_data_gen = image_gen.flow_from_directory(directory=train_dir,
+                                               batch_size=BATCH_SIZE,
+                                               shuffle=True,
+                                               target_size=(IMG_SHAPE, IMG_SHAPE),
+                                               class_mode= 'binary')
+
+#Returns a DirectoryIterator(train_data_gen) yielding tuples of (x, y) where x is a numpy array containing 
+#a batch of images with shape (batch_size, *target_size, channels) and y is a 
+#numpy array of corresponding labels.
+
+#train_data_gen returns output of the shape (batch_size, image shape, image shape, num of channels)
+#Here it would be (100, 150, 150, 3)
+
+#select the first batch, image data of the batch and ther first entry in the batch. 
+augmented_images = [train_data_gen[0][0][0] for i in range(5)]
+plotImages(augmented_images)
+
+image_gen_val = ImageDataGenerator(rescale=1./255)
+val_data_gen = image_gen_val.flow_from_directory(directory=validation_dir,
+                                                 batch_size=BATCH_SIZE,
+                                                 target_size=(IMG_SHAPE, IMG_SHAPE),
+                                                 class_mode= 'binary')
+
+#Build the model
+model= tf.keras.models.Sequential([
+        tf.keras.layers.Conv2D(32, (3,3), activation='relu', input_shape = (150,150,3)),
+        tf.keras.layers.MaxPooling2D((2,2)),
         
-        tf.keras.layers.Conv2D(64, (3,3), activation= 'relu'),
-        tf.keras.layers.MaxPool2D((2,2)),
+        tf.keras.layers.Conv2D(64, (2,2), activation='relu'),
+        tf.keras.layers.MaxPooling2D((2,2)),
         
-        tf.keras.layers.Conv2D(128, (3,3), activation= 'relu'),
-        tf.keras.layers.MaxPool2D((2,2)),
+        tf.keras.layers.Conv2D(128, (3,3), activation='relu'),
+        tf.keras.layers.MaxPooling2D((2,2)),
+        
+        tf.keras.layers.Conv2D(128, (3,3), activation='relu'),
+        tf.keras.layers.MaxPooling2D((2,2)),
+        
+        tf.keras.layers.Dropout(0.5),
         
         tf.keras.layers.Flatten(),
+        
         tf.keras.layers.Dense(512, activation='relu'),
         tf.keras.layers.Dense(2)
         ])
@@ -118,21 +230,22 @@ model = tf.keras.models.Sequential([
 #Compile the model
 model.compile(optimizer='adam',
               loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-              metrics=['accuracy'])
+              metrics = ['accuracy']
+              )
+
 model.summary()
 
-#fit the model
-EPOCHS=100
-history = model.fit(train_data_gen, 
-          epochs = EPOCHS, 
-          validation_data=val_data_gen,
-          validation_steps = int(np.ceil(total_val/float(BATCH_SIZE))),
-          shuffle=True,
-          steps_per_epoch=int(np.ceil(total_train/float(BATCH_SIZE))),
-          )
 
-#let's plot the accuracy and loss progression in each epoch
-#First, prinnt which data fields are avaiable in the hostory object
+#Train the model
+EPOCHS = 100
+history = model.fit(train_data_gen,
+                    steps_per_epoch=int(np.ceil(total_train/float(BATCH_SIZE))),
+                    epochs=EPOCHS,
+                    validation_data=val_data_gen,
+                    validation_steps=int(np.ceil(total_val/float(BATCH_SIZE))))
+
+##let's plot the accuracy and loss progression in each epoch
+##First, prinnt which data fields are avaiable in the hostory object
 print(history.history.keys())
 
 acc = history.history['accuracy']
@@ -158,13 +271,3 @@ plt.title('Training and Validation Loss')
 
 plt.savefig('./AccuracyLoss')
 plt.show()
-###############################################################################
-
-
-#The above method shows 70% accuracy on validation set and 100% on the training set.
-#The diverging graphs in accuracy and loss show overfitting.
-#We'll try two methods to mitigate overfitting: Data augmentation and Dropout
-
-
-
-
